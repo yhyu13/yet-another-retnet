@@ -235,21 +235,45 @@ def get_split_indices(
 
 
 class GutenbergEBookLoader(IterDataPipe[str]):
+    """
+    Loads a text file from the Project Gutenberg website.
+    """
+    cache_dir_full = None
+    cache_dir = "/dataset/gutenberg/"
+
     def __init__(self, dp: IterDataPipe[str]):
         self.dp = dp
 
     def __iter__(self) -> Generator[str, None, None]:
         for url in self.dp:
-            resp = requests.get(url)
-            try:
-                resp.raise_for_status()
-            except requests.exceptions.HTTPError:
-                continue
+            file_name = url[len("https://www.gutenberg.org/ebooks/"):]
+            import os
 
-            text = resp.text
-            text = text.split("***", maxsplit=2)[-1]  # remove header
-            text = text.split("*** End", maxsplit=1)[0]  # remove footer
-            text = text.strip()
+            if not self.cache_dir_full:
+                self.cache_dir_full = os.path.normpath(os.getcwd() + self.cache_dir)
+                if not os.path.exists(self.cache_dir_full):
+                    os.makedirs(self.cache_dir_full)
+            
+            cache_file = os.path.normpath(os.path.join(self.cache_dir_full, file_name))
+            # Try read cache
+            if os.path.exists(cache_file):
+                text = open(cache_file, encoding="utf-8").read()
+                yield text
+            else:
+                resp = requests.get(url)
+                try:
+                    resp.raise_for_status()
+                except requests.exceptions.HTTPError:
+                    continue
+
+                text = resp.text
+                text = text.split("***", maxsplit=2)[-1]  # remove header
+                text = text.split("*** End", maxsplit=1)[0]  # remove footer
+                text = text.strip()
+
+                # cache file
+                with open(cache_file, "w", encoding="utf-8") as f:
+                    f.write(text)
 
             yield text
 
@@ -303,3 +327,12 @@ def project_gutenberg_top_100_datapipe(
         pipe = pipe.shuffle(buffer_size=shuffle_buffer_size)
 
     return pipe
+
+if __name__ == "__main__":
+    # Iterable datapipe of ebook URLs (ebooks are UTF-8 text files)
+    pipe: IterDataPipe = IterableWrapper(GUTENBERG_TOP_100_URLS)
+    pipe = GutenbergEBookLoader(pipe)
+    count = 1
+    for text in pipe:
+        print(f'requested {count}: {len(text)}')
+        count += 1

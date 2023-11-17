@@ -44,6 +44,7 @@ train = [
   "tiktoken~=0.4.0",
   "torchdata>=0.6.0",
   "tqdm",
+  "deepspeed",
 ]
 
 # ----- Linting, Formatting, and Typing -----

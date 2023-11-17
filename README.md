@@ -1,3 +1,9 @@
+# Forked Changes
+
+1. Add main method & dataset cache mechanism in `yet_another_retnet/utils/gutenberg.py`, just python call it to download required dataset.
+2. Add predonwloaded dataset for offline rig
+3. Add \`deepspeed\` dependency in coz frabric use it better than \`auto\`
+
 # yet-another-retnet
 
 A simple but robust PyTorch implementation of RetNet from [Retentive Network: A Successor to Transformer for Large Language Models](https://arxiv.org/pdf/2307.08621.pdf).

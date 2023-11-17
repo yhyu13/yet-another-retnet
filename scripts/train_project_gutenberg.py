@@ -21,7 +21,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from yet_another_retnet.retnet import RetNet
+from yet_another_retnet.retnet import RetNet, retnet_1_3b, retnet_2_7b, retnet_6_7b
 from yet_another_retnet.utils.gutenberg import project_gutenberg_top_100_datapipe
 
 torch.set_float32_matmul_precision("medium")
@@ -308,12 +308,13 @@ def main(
 ):
     seed_everything(seed)
     # Create a (relatively small) model and dataloaders
-    retnet = RetNet(
-        num_tokens=TOKENIZER.n_vocab,
-        d_model=768,
-        nhead=8,
-        num_layers=12,
-    )
+    # retnet = RetNet(
+    #     num_tokens=TOKENIZER.n_vocab,
+    #     d_model=64,
+    #     nhead=8,
+    #     num_layers=1,
+    # )
+    retnet = retnet_1_3b(num_tokens=TOKENIZER.n_vocab)
     if model_checkpoint is not None:
         retnet.load_state_dict(ModelCheckpoint.load(model_checkpoint).state_dict)
 
@@ -372,14 +373,14 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-checkpoint", type=str, default=None)
-    parser.add_argument("--accelerator", type=str, default="auto")
-    parser.add_argument("--strategy", type=str, default="auto")
+    parser.add_argument("--accelerator", type=str, default="gpu")
+    parser.add_argument("--strategy", type=str, default="deepspeed")
     parser.add_argument("--precision", type=str, default=None)
     parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--log-frequency", type=int, default=25)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--log-frequency", type=int, default=1)
+    parser.add_argument("--seed", type=int, default=1215)
     parser.add_argument("--eval-only", action="store_true")
     parser.add_argument("--eval-prompt", type=str, default=EVAL_PROMPT)
     parser.add_argument("--eval-max-tokens", type=int, default=1024)
