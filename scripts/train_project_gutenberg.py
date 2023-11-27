@@ -192,6 +192,7 @@ def train(
     epochs: int = 10,
     lr: float = 3e-4,
     log_frequency: int = 25,
+    evalation = None
 ):
     if precision is None:
         if torch.cuda.is_available():
@@ -201,7 +202,7 @@ def train(
         else:
             precision = "32-true"
 
-    logger = TensorBoardLogger(root_dir="./")
+    logger = TensorBoardLogger(root_dir="/root/autodl-tmp/")
     fabric = Fabric(
         accelerator=accelerator,
         strategy=strategy,
@@ -225,13 +226,15 @@ def train(
         optimizer=optimizer,
         callbacks=[CheckpointCallback(save_dir=logger.log_dir)],
     )
-    for _ in range(epochs):
+    for ep in range(epochs):
         train_one_epoch(
             state=state,
             train_dataloader=train_dataloader,
             val_dataloader=val_dataloader,
             log_frequency=log_frequency,
         )
+        if evalation:
+            evalation(os.path.join(logger.log_dir, f'epoch_{ep}_evaluation.txt'))
 
 
 def generate(
@@ -242,9 +245,7 @@ def generate(
     stop_tokens: Sequence[str] = (),
     top_k: int = 10,
     temperature: float = 1.0,
-    seed: int = 42,
 ) -> Iterator[str]:
-    seed_everything(seed)
     device = next(iter(retnet.parameters())).device
     is_training = retnet.training
     retnet.eval()
@@ -308,15 +309,25 @@ def main(
 ):
     seed_everything(seed)
     # Create a (relatively small) model and dataloaders
-    # retnet = RetNet(
-    #     num_tokens=TOKENIZER.n_vocab,
-    #     d_model=64,
-    #     nhead=8,
-    #     num_layers=1,
-    # )
-    retnet = retnet_1_3b(num_tokens=TOKENIZER.n_vocab)
+    retnet = RetNet(
+        num_tokens=TOKENIZER.n_vocab,
+        d_model=64,
+        nhead=8,
+        num_layers=1,
+    )
+    #retnet = retnet_1_3b(num_tokens=TOKENIZER.n_vocab)
     if model_checkpoint is not None:
         retnet.load_state_dict(ModelCheckpoint.load(model_checkpoint).state_dict)
+        
+    def evalation(filepath: str):
+        # Generate some text
+        prev_output: str = ""
+        for output in generate(retnet, eval_prompt, max_new_tokens=eval_max_tokens):
+            # Return to the start of the line and print the output (no newline)
+            print(output[len(prev_output) :], end="", flush=True)
+            prev_output = output
+        with open(file=filepath, mode='w', encoding='utf-8') as f:
+            f.write(prev_output)
 
     if not eval_only:
         num_devices = torch.cuda.device_count()
@@ -346,7 +357,7 @@ def main(
             batch_size=batch_size,
             collate_fn=collate_fn,
         )
-
+        
         train(
             retnet=retnet,
             train_dataloader=train_dataloader,
@@ -357,15 +368,10 @@ def main(
             epochs=epochs,
             lr=lr,
             log_frequency=log_frequency,
+            evalation=evalation
         )
 
-    # Generate some text
-    prev_output: str = ""
-    for output in generate(retnet, eval_prompt, max_new_tokens=eval_max_tokens):
-        # Return to the start of the line and print the output (no newline)
-        print(output[len(prev_output) :], end="", flush=True)
-        prev_output = output
-    print()
+    evalation("/root/autodl-tmp/final_evalution.txt")
 
 
 if __name__ == "__main__":
@@ -376,8 +382,8 @@ if __name__ == "__main__":
     parser.add_argument("--accelerator", type=str, default="gpu")
     parser.add_argument("--strategy", type=str, default="deepspeed")
     parser.add_argument("--precision", type=str, default=None)
-    parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--log-frequency", type=int, default=1)
     parser.add_argument("--seed", type=int, default=1215)
